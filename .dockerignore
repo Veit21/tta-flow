@@ -1,0 +1,12 @@
+# Git and environments
+.git
+.gitignore
+.venv
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Do not copy data directly into the image!
+data/
+/home/veit-hucke/Data/
