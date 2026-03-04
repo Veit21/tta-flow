@@ -1,0 +1,2 @@
+name: "RETOUCH_topcon"
+data_dir: "/app/data/dataset_configs/retouch_original_topcon.csv"

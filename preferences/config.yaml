@@ -1,0 +1,13 @@
+defaults:
+  - model: generation_from_gaussian
+  - optimizer: adam
+  - loss: fm_regression
+  - data: retouch_spectralis
+  - train_parameters: param_fm
+  - transforms: transforms_fm
+  
+hydra:
+  run:
+    dir: runs/${now:%Y-%m-%d_%H-%M-%S}-${train_param.comment}
+  sweep:
+    dir: runs/${now:%Y-%m-%d_%H-%M-%S}-${train_param.comment}

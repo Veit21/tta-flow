@@ -1,0 +1,51 @@
+train:
+  - name: albumentations.augmentations.geometric.resize.Resize
+    params:
+      height: 112
+      width: 112
+
+  - name: albumentations.augmentations.pixel.transforms.Normalize
+    params:
+      mean: 0.5
+      std: 0.5
+      max_pixel_value: 1.0
+  
+  - name: albumentations.augmentations.geometric.flip.HorizontalFlip
+    params:
+      p: 0.5
+  
+  - name: albumentations.pytorch.transforms.ToTensorV2
+    params:
+      transpose_mask: False
+
+validation:
+  - name: albumentations.augmentations.geometric.resize.Resize
+    params:
+      height: 112
+      width: 112
+
+  - name: albumentations.augmentations.pixel.transforms.Normalize
+    params:
+      mean: 0.5
+      std: 0.5
+      max_pixel_value: 1.0
+  
+  - name: albumentations.pytorch.transforms.ToTensorV2
+    params:
+      transpose_mask: False
+
+test:
+  - name: albumentations.augmentations.geometric.resize.Resize
+    params:
+      height: 112
+      width: 112
+
+  - name: albumentations.augmentations.pixel.transforms.Normalize
+    params:
+      mean: 0.5
+      std: 0.5
+      max_pixel_value: 1.0
+  
+  - name: albumentations.pytorch.transforms.ToTensorV2
+    params:
+      transpose_mask: False
