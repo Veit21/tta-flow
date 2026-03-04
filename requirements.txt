@@ -114,3 +114,4 @@ typing_extensions==4.15.0
 wcwidth==0.6.0
 widgetsnbextension==4.0.15
 yarl==1.23.0
+tensorboard

@@ -59,7 +59,7 @@ class FlowMatchingRegressionLoss:
             logger.info("Using the standard Flow Matching regression loss.")
             logger.info(f"Using regression target >> {self.regression_target} <<")
 
-    def __call__(self, flow_matcher: ConditionalFlowMatcher, net: nn.Module, x0: torch.Tensor, x1: torch.Tensor, y: torch.Tensor):
+    def __call__(self, flow_matcher: ConditionalFlowMatcher, net: nn.Module, x0: torch.Tensor, x1: torch.Tensor):
         """Calculate the (batch of) interpolant(s) xt at random time points in [0, 1], get predictions from the
         velocity network at given time points and regress the vector field.
         Using the standard regression loss from the (OT) Flow Matching framework of Lipman et al., Tong et al.

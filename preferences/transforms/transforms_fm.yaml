@@ -1,8 +1,8 @@
 train:
   - name: albumentations.augmentations.geometric.resize.Resize
     params:
-      height: 112
-      width: 112
+      height: 128
+      width: 128
 
   - name: albumentations.augmentations.pixel.transforms.Normalize
     params:
@@ -21,8 +21,8 @@ train:
 validation:
   - name: albumentations.augmentations.geometric.resize.Resize
     params:
-      height: 112
-      width: 112
+      height: 128
+      width: 128
 
   - name: albumentations.augmentations.pixel.transforms.Normalize
     params:
@@ -37,8 +37,8 @@ validation:
 test:
   - name: albumentations.augmentations.geometric.resize.Resize
     params:
-      height: 112
-      width: 112
+      height: 128
+      width: 128
 
   - name: albumentations.augmentations.pixel.transforms.Normalize
     params:

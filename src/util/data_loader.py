@@ -74,7 +74,7 @@ class FlowMatchingTrainDataset(Dataset):
         cached_images    = []
 
         # Load data
-        print(f"Loading target data >> {self.target_tag} <<")
+        print(f"Loading target data.")
         for path in tqdm(self.df[self.volumes_tag], desc="Loading files"):
             volume  = np.load(path).astype(np.float32)
             slices  = np.split(volume, volume.shape[0], axis=0)     # Split (D, H, W) in D x (1, H, W) arrays
@@ -85,10 +85,70 @@ class FlowMatchingTrainDataset(Dataset):
         return cached_images
     
 
-# TODO: Implement dataset class for inference that caches the 3D volumes.
 class FlowMatchingInferenceDataset(Dataset):
-    def __init__(self, **kwargs):
-        raise NotImplementedError("This dataset class is not implemented yet.") 
+    """
+    PyTorch Dataset for inference that loads and caches full 3D volumetric data.
+    
+    Unlike the training dataset, this dataset loads complete 3D volumes without slicing.
+    It optionally applies augmentation transformations slice-by-slice and returns the
+    full 3D volume as a tensor.
+    
+    Attributes:
+        df (pd.DataFrame): DataFrame containing paths to volumetric data.
+        transform: Albumentations augmentation pipeline to apply to each 2D slice.
+        volumes_tag (str): Column name in the DataFrame that contains volume file paths.
+        cached_volumes (list): List of cached full 3D volumes.
+    """
+    
+    def __init__(self, dataframe: pd.DataFrame, transform=None, volumes_tag="volume"):
+        """
+        Initialize the FlowMatchingInferenceDataset.
+        
+        Args:
+            dataframe (pd.DataFrame): DataFrame with volume file paths.
+            transform (albumentations.Compose, optional): Augmentation pipeline to apply to each 2D slice.
+                Defaults to None if no transformations are applied.
+            volumes_tag (str, optional): Column name in dataframe containing volume paths.
+                Defaults to "volume".
+        """
+        self.df             = dataframe
+        self.transform      = transform
+        self.volumes_tag    = volumes_tag
+        
+        # Cache data
+        self.cached_volumes = self.cache_data()
+    
+    def __len__(self) -> int:
+        return len(self.cached_volumes)
+    
+    def __getitem__(self, idx: int) -> torch.Tensor:
+        volume = self.cached_volumes[idx]  # (D, H, W)
+        
+        # Apply transforms
+        if self.transform:
+          volume = self.transform(volume=volume["volume"])      # TODO: Check whether this transform works as expected!
+
+        return volume
+    
+    def cache_data(self) -> list:
+        """
+        Load 3D volumetric data from disk and cache them.
+        
+        This method reads all 3D volumes specified in the dataframe and caches them in memory.
+        
+        Returns:
+            list: List of cached 3D volumes, each of shape (D, H, W).
+        """
+        cached_volumes = []
+        
+        print(f"Loading inference data.")
+        for path in tqdm(self.df[self.volumes_tag], desc="Loading volumes"):
+            volume = np.load(path).astype(np.float32)
+            cached_volumes.append(volume)
+        
+        print(f"INFO: Loaded {len(cached_volumes)} volumes")
+        
+        return cached_volumes 
 
 
 def load_data_from_csv(csv_path: str) -> pd.DataFrame:

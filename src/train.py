@@ -15,9 +15,7 @@ import os
 import numpy as np
 import torch.nn as nn
 
-from itertools import islice
 from tqdm import tqdm
-from pathlib import Path
 from omegaconf import DictConfig
 from torchcfm.conditional_flow_matching import TargetConditionalFlowMatcher
 from torchvision.utils import make_grid
@@ -26,6 +24,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from util.data_loader import FlowMatchingTrainDataset, load_data_from_csv, get_transforms
 from util import model_util, losses, flow_matching_util
+from util.checkpoint_manager import CheckpointManager
 
 # TODO: Tidy code!
 #----------------------------------------------------------------------------
@@ -35,34 +34,33 @@ from util import model_util, losses, flow_matching_util
 def main(cfg: DictConfig) -> None:
 
     # --- Options ---
-    torch.manual_seed(cfg["train_param"]["seed"])
-    np.random.seed(cfg["train_param"]["seed"])
+    torch.manual_seed(cfg["train_parameters"]["seed"])
+    np.random.seed(cfg["train_parameters"]["seed"])
     log                 = logging.getLogger(__name__)
     log_dir             = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
 
     checkpoint_dir      = os.path.join(log_dir, "checkpoints")
     save_dir_val        = os.path.join(log_dir, "val")
-    save_dir_train      = os.path.join(log_dir, "train")
     os.makedirs(checkpoint_dir, exist_ok=True)
     os.makedirs(os.path.join(save_dir_val, "im"), exist_ok=True)
     os.makedirs(os.path.join(save_dir_val, "gif"), exist_ok=True)
-    os.makedirs(os.path.join(save_dir_train, "im"), exist_ok=True)
-    os.makedirs(os.path.join(save_dir_train, "gif"), exist_ok=True)
     writer              = SummaryWriter(log_dir=log_dir)
     device              = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     log.info(f"Using device {device}")
+    
+    # Initialize checkpoint manager
+    checkpoint_manager  = CheckpointManager(checkpoint_dir=checkpoint_dir, logger=log)
 
     # Get the transforms
     train_transforms, _, _  = get_transforms(config=cfg)
 
     # Load the data
-    train_dataframe     = load_data_from_csv(csv_path=cfg["data"]["train_data_dir"])
+    train_dataframe     = load_data_from_csv(csv_path=cfg["data"]["data_dir"])
     train_dataset       = FlowMatchingTrainDataset(
         dataframe=train_dataframe,
         transform=train_transforms,
     )
-
-    train_dataloader    = DataLoader(dataset=train_dataset, batch_size=cfg["train_param"]["train_batch_size"], shuffle=True, pin_memory=True, drop_last=True)
+    train_dataloader    = DataLoader(dataset=train_dataset, batch_size=cfg["train_parameters"]["train_batch_size"], shuffle=True, pin_memory=True, drop_last=True)
 
     # Define the models
     net_model   = model_util.build_model(config=cfg, logger=log, device=device)
@@ -84,44 +82,13 @@ def main(cfg: DictConfig) -> None:
 
     # Load from checkpoint if continuing training
     start_step = 0
-    if cfg["train_param"]["continue_train"]:
-        checkpoint_path = cfg["train_param"]["checkpoint_dir"]
-        if checkpoint_path is None or not os.path.exists(checkpoint_path):
-            log.warning(f"Checkpoint directory not found at {checkpoint_path}. Starting from scratch.")
-        else:
-            # Find latest checkpoint
-            checkpoints = [f for f in os.listdir(checkpoint_path) if f.endswith('.pt')]
-            if not checkpoints:
-                log.warning(f"No checkpoints found in {checkpoint_path}. Starting from scratch.")
-            else:
-                # Extract step numbers and find latest
-                steps = [int(f.split('_step_')[-1].replace('.pt', '')) for f in checkpoints]
-                latest_idx = steps.index(max(steps))
-                latest_checkpoint = os.path.join(checkpoint_path, checkpoints[latest_idx])
-                
-                log.info(f"Loading checkpoint from {latest_checkpoint}")
-                checkpoint = torch.load(latest_checkpoint)
-                
-                # Load model weights and check for incompatibilities
-                net_missing, net_unexpected = net_model.load_state_dict(checkpoint['net_model'], strict=False)
-                if net_missing:
-                    log.warning(f"Missing keys in net_model: {net_missing}")
-                if net_unexpected:
-                    log.warning(f"Unexpected keys in net_model: {net_unexpected}")
-                
-                ema_missing, ema_unexpected = ema_model.load_state_dict(checkpoint['ema_model'], strict=False)
-                if ema_missing:
-                    log.warning(f"Missing keys in ema_model: {ema_missing}")
-                if ema_unexpected:
-                    log.warning(f"Unexpected keys in ema_model: {ema_unexpected}")
-                
-                # Load optimizer and scheduler states
-                optim.load_state_dict(checkpoint['optim'])
-                sched.load_state_dict(checkpoint['sched'])
-                
-                # Update starting step
-                start_step = checkpoint['step'] + 1
-                log.info(f"Resuming training from step {start_step}")
+    if cfg["train_parameters"]["continue_train"]:
+        start_step = checkpoint_manager.load_checkpoint(
+            net_model=net_model,
+            ema_model=ema_model,
+            optimizer=optim,
+            scheduler=sched,
+        )
 
     # Define Flow Matching framework and the conditioning q(z)
     sigma = cfg["model"]["sigma"]
@@ -141,7 +108,7 @@ def main(cfg: DictConfig) -> None:
         raise NotImplementedError(f"Unkonwn loss function >> {cfg['loss']['name']} <<, must be one of ['FlowMatchingRegression'].")
 
     # Iterate DataLoader
-    for step in tqdm(range(start_step, cfg["train_param"]["max_iterations"])):
+    for step in tqdm(range(start_step, cfg["train_parameters"]["max_iterations"])):
         optim.zero_grad()
                 
         # Independently draw samples from p0 and p1
@@ -161,31 +128,27 @@ def main(cfg: DictConfig) -> None:
 
         # Update
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(net_model.parameters(), cfg["train_param"]["grad_clip"])
+        torch.nn.utils.clip_grad_norm_(net_model.parameters(), cfg["train_parameters"]["grad_clip"])
         optim.step()
         sched.step()
-        ema(source=net_model, target=ema_model, decay=cfg["train_param"]["ema_decay"])
-
+        ema(source=net_model, target=ema_model, decay=cfg["train_parameters"]["ema_decay"])
 
         # Sample and Save the weights
-        if (cfg["train_param"]["eval_num_steps"] > 0 and step % cfg["train_param"]["eval_num_steps"] == 0) and step != 0:
+        if (cfg["train_parameters"]["eval_num_steps"] > 0 and step % cfg["train_parameters"]["eval_num_steps"] == 0) and step != 0:
 
             # Save weights
-            torch.save(
-                {
-                    "net_model": net_model.state_dict(),
-                    "ema_model": ema_model.state_dict(),
-                    "sched": sched.state_dict(),
-                    "optim": optim.state_dict(),
-                    "step": step,
-                },
-                os.path.join(checkpoint_dir, f"{cfg['model']['q_z']}_maestro-spectralis_weights_step_{step}.pt"),
+            checkpoint_manager.save_checkpoint(
+                net_model=net_model,
+                ema_model=ema_model,
+                optimizer=optim,
+                scheduler=sched,
+                step=step,
+                model_name=f"{cfg['model']['q_z']}_maestro-spectralis",
             )
 
-            # TODO: Overwork this part. I.e., do not use a dataloader here?
             # Validation loops
-            generate_samples(cfg, model=net_model, eval_dataloader=val_dataloader, savedir_samples=save_dir_val, step=step, net_="normal", device=device)
-            generate_samples(cfg, model=ema_model, eval_dataloader=val_dataloader, savedir_samples=save_dir_val, step=step, net_="ema", device=device)
+            generate_samples(cfg, model=net_model, savedir_samples=save_dir_val, step=step, net="normal", device=device, logger=log)
+            generate_samples(cfg, model=ema_model, savedir_samples=save_dir_val, step=step, net="ema", device=device, logger=log)
             
     return 0
 
@@ -193,69 +156,132 @@ def main(cfg: DictConfig) -> None:
 #----------------------------------------------------------------------------
 # Helper functions
 
-def generate_samples(cfg, model: nn.Module, eval_dataloader: DataLoader, savedir_samples: Path, step: int, net_: str, device):
+def generate_samples(cfg: DictConfig, model: nn.Module, savedir_samples: str, step: int, net: str, device: torch.device, logger: logging.Logger) -> None:
+    """
+    Generate validation samples using the trained model and save them to disk.
     
-    # Set model to evaluation mode
+    Args:
+        cfg (DictConfig): Configuration dictionary containing model and training parameters.
+        model (nn.Module): Trained model to use for generation.
+        savedir_samples (str): Directory path where samples will be saved.
+        step (int): Current training step (used for filename).
+        net_ (str): Network identifier ("normal" or "ema") for filename.
+        device (torch.device): Device (CPU/GPU) to run generation on.
+    """
     model.eval()
-    model_  = copy.deepcopy(model)
-
-    # Cache all trajectories
-    trajectories_cached = []
-    x1_cached = []
-
-    # Instantiate the ODE solver
-    node_   = flow_matching_util.ODESolver(
-        model=model_, 
-        solver=cfg["train_param"]["solver"], 
-        conditional=cfg["train_param"]["guided"], 
+    ode_solver = flow_matching_util.ODESolver(
+        model=copy.deepcopy(model), 
+        solver=cfg["train_parameters"]["solver"], 
         sample_x=cfg["loss"]["target"] == "x"
     )
+    
+    # Configuration
+    h, w = cfg["model"]["params"]["dim"][1], cfg["model"]["params"]["dim"][2]
+    num_timesteps = 101
+    
+    trajectories = []
+    for _ in tqdm(range(cfg["train_parameters"]["num_val_samples"]), desc="Generating validation samples"):
 
-    # Iterate the eval_dataloader
-    print(f"INFO: Validation - net {net_}")
-    for batch in tqdm(islice(eval_dataloader, 9), total=9):
+        # Initialize from random noise
+        x0 = torch.randn(1, 1, h, w, device=device)
         
-        # Draw batches of samples from the source domain
-        x0, x1, y   = batch
-        x0          = x0.to(device)[:1]     # Always just choose the first element of the batch for checking inference on training data # TODO: Remove this.
-        x1          = x1.to(device)[:1]     # See above
-
-        x0      = torch.randn_like(x1, device=device)   # Start from gaussian noise and generate a high-res sample
-
         with torch.no_grad():
-            
-            # ODE solve
-            traj = node_(
-                x       = x0,
-                t_span  = torch.linspace(0, 1, 101, device=device), # TODO: Make num steos configurable
-                y       = y
+            trajectory = ode_solver(
+                x=x0,
+                t_span=torch.linspace(0, 1, num_timesteps, device=device),
             )
-            every_nth = 10      # Which nth samples from the trajectory to save later
-
-        traj = traj.clip(-1, 1)         # Make sure images are in [-1, 1]
-        traj = traj / 2 + 0.5           # Cast back to [0, 1]
         
-        x1 = x1.clip(-1, 1)
-        x1 = x1 / 2 + 0.5
+        # Normalize to [0, 1] range
+        trajectory = trajectory.clip(-1, 1)
+        trajectory = trajectory / 2 + 0.5
+        trajectories.append(trajectory)
     
-        # Save
-        trajectories_cached.append(traj)
-        x1_cached.append(x1)
-    
-    # Save a subset of samples: x0, x1 and a GIF x0 -> x1
-    save_samples(
-        tensor_list=trajectories_cached,
+    # Save visualization
+    _save_visualizations(
+        trajectories=trajectories,
         save_path=savedir_samples,
         step=step,
-        net_=net_,
-        grid_size=3,
-        num_samples=9,  # TODO: Redundant
-        every_nth=every_nth
+        net=net,
+        num_samples=cfg["train_parameters"]["num_val_samples"],
+        logger=logger,
     )
-
-    # Activate train mode again
+    
     model.train()
 
+def _save_visualizations(
+    trajectories: list,
+    save_path: str,
+    step: int,
+    net: str,
+    logger: logging.Logger,
+    grid_size: int = 3,
+    num_samples: int = 9,
+    padding: int = 2,
+    every_nth: int = 10,
+) -> None:
+    """
+    Save trajectory visualizations as static images and animated GIFs.
+    
+    Creates three types of visualizations:
+    - Grid of initial frames (x0)
+    - Grid of final frames (x1)
+    - Grid of sampled trajectory steps and animated GIF
+    """
+    
+    # Ensure output directories exist
+    os.makedirs(os.path.join(save_path, "im"), exist_ok=True)
+    os.makedirs(os.path.join(save_path, "gif"), exist_ok=True)
+    
+    # Select subset of trajectories
+    actual_num_samples = min(len(trajectories), num_samples)
+    selected_indices = random.sample(range(len(trajectories)), actual_num_samples)
+    selected_trajectories = [trajectories[i] for i in selected_indices]
+    
+    # Extracted trajectories shape: [T, 1, 1, H, W] -> [T, 1, H, W]
+    squeezed_trajectories = [traj.squeeze(2) for traj in selected_trajectories]
+    
+    # Get final frames: take the last timestep of each squeezed trajectory
+    # traj[-1] shape is [1, H, W]. Stack them along dim=0 to get [N, 1, H, W]
+    final_frames = torch.stack([traj[-1] for traj in squeezed_trajectories], dim=0)
+    
+    # Stack all time steps along the batch dimension: [T, N, 1, H, W]
+    stacked = torch.stack(squeezed_trajectories, dim=1)
+    num_timesteps = stacked.shape[0]
+    
+    to_pil = ToPILImage()
+    
+    # Save final frames (x1) static grid
+    grid = make_grid(final_frames, nrow=grid_size, padding=padding)
+    img = to_pil(grid)
+    img.save(os.path.join(save_path, f"im/{step:06}_{net}_x1.png"), format="PNG")
+    
+    # Save sampled trajectory
+    sample_idx = random.randint(0, actual_num_samples - 1)
+    trajectory_sample = stacked[:, sample_idx]              # Shape: [T, 1, H, W]
+    trajectory_subsampled = trajectory_sample[::every_nth]  # Shape: [T', 1, H, W]
+    
+    grid_traj = make_grid(trajectory_subsampled, nrow=10, padding=padding)
+    to_pil(grid_traj).save(
+        os.path.join(save_path, f"im/{step:06}_{net}_traj.png"),
+        format="PNG",
+    )
+    
+    # Save animated GIF of all timesteps
+    # stacked[t] is already [N, 1, H, W], perfectly sized for make_grid.
+    frames_gif = [
+        to_pil(make_grid(stacked[t], nrow=grid_size, padding=padding))
+        for t in range(num_timesteps)
+    ]
+    
+    frames_gif[0].save(
+        os.path.join(save_path, f"gif/{step:06}_{net}_im_grid.gif"),
+        save_all=True,
+        append_images=frames_gif[1:],
+        duration=100,
+        loop=0,
+    )
+    
+    logger.info(f"Visualizations saved: step {step}, network {net}")
 
 def ema(source: nn.Module, target: nn.Module, decay: float):
     """Exponential moving average decay of the model parameters.
@@ -271,88 +297,6 @@ def ema(source: nn.Module, target: nn.Module, decay: float):
         target_dict[key].data.copy_(
             target_dict[key].data * decay + source_dict[key].data * (1 - decay)
         )
-
-# TODO: Put into some utils class/file
-def save_samples(tensor_list: list, save_path: str, step: str, net_: str, grid_size: int=8, num_samples: int=64, padding: int=2, every_nth: int=10):
-    """
-    Randomly samples sequences from a list of image tensors, saves initial and final
-    frames as grids, and exports the full sequences as an animated GIF.
-
-    Args:
-        tensor_list (list): List of tensors, each shaped [T, 1, 1, H, W], where T is the number of frames.
-        save_path (Path): Base directory where images and GIFs will be saved (subdirs 'im' and 'gif' are expected).
-        step (str): Training step or identifier used in filenames.
-        net_ (str): Network name or identifier used in filenames.
-        grid_size (int, optional): Number of images per row/column in the grid. Defaults to 8.
-        num_samples (int, optional): Number of sequences to sample for visualization. Defaults to 64.
-        padding (int, optional): Padding (in pixels) between grid images. Defaults to 2.
-        every_nth (int, optional): Which nth samples from a trajectory to save later. Defaults to 10.
-
-    Raises:
-        ValueError: If `tensor_list` contains fewer than `num_samples` elements.
-    """
-
-    # Sanity check
-    if len(tensor_list) < num_samples:
-        raise ValueError(f"Not enough tensors: need {num_samples}, got {len(tensor_list)}.")
-    
-    # Randomly choose tensors
-    # sampled_tensors = random.sample(tensor_list, num_samples)
-    indices = random.sample(range(len(tensor_list)), num_samples)
-    sampled_tensors = [tensor_list[i] for i in indices]                             # List N x [100, 1, 1, H, W]
-
-    # Get tensors at initial and final time step
-    tensor_list_initial = [x[0, :] for x in sampled_tensors]        # Shape [1, 1, H, W]
-    tensor_list_final   = [x[-1, :] for x in sampled_tensors]       # Shape [1, 1, H, W]
-
-
-    # Stack into single tensors
-    batch_initial   = torch.cat(tensor_list_initial)                                            # Shape [N, C, H, W]
-    batch_final     = torch.cat(tensor_list_final)                                              # Shape [N, C, H, W]
-    batch_T         = torch.cat(sampled_tensors, dim=1)           # Shape [100, N, 1, H, W], assume all tensors have the same shape
-    T               = batch_T.shape[0]
-    N               = batch_T.shape[1]
-
-    # --- get random trajectory of batch_T ---
-    rand_idx    = random.randint(0, N - 1)
-    traj        = batch_T[:, rand_idx]          # Shape: [100, 1, H, W]
-    traj_10     = traj[::every_nth]             # Shape: [11, 1, H, W], get every nth sample, typically 10th or 100th
-
-    # --- save images ---
-    # Create grid
-    grid_initial    = make_grid(tensor=batch_initial, nrow=grid_size, padding=padding)
-    grid_final      = make_grid(tensor=batch_final, nrow=grid_size, padding=padding)
-    grid_traj       = make_grid(tensor=traj_10, nrow=10, padding=padding)
-
-    
-    # Convert to PIL Image and save
-    to_pil          = ToPILImage()
-    img_initial     = to_pil(grid_initial)
-    img_final       = to_pil(grid_final)
-    img_traj        = to_pil(grid_traj)
-    img_initial.save(os.path.join(save_path, f"im/{step:06}_{net_}_x0.png"), format="PNG")
-    img_final.save(os.path.join(save_path, f"im/{step:06}_{net_}_x1.png"), format="PNG")
-    img_traj.save(os.path.join(save_path, f"im/{step:06}_{net_}_traj.png"), format="PNG")
-
-    # --- save animation ---
-    T = batch_T.shape[0]
-    frames = []
-    for t in range(T):          # Tensor at each time t has shape [N, 1, H, W]
-
-        # Create grid
-        grid    = make_grid(tensor=batch_T[t], nrow=grid_size, padding=padding)
-        frames.append(to_pil(grid))
-    
-    # Save as GIF
-    frames[0].save(
-        os.path.join(save_path, f"gif/{step:06}_{net_}_im_grid.gif"),
-        save_all=True,
-        append_images=frames[1:],
-        duration=100,
-        loop=0
-    )
-
-    print(f"INFO: Samples saved.")
 
 
 if __name__ == "__main__":

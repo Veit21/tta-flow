@@ -8,6 +8,6 @@ defaults:
   
 hydra:
   run:
-    dir: runs/${now:%Y-%m-%d_%H-%M-%S}-${train_param.comment}
+    dir: runs/${now:%Y-%m-%d_%H-%M-%S}-${train_parameters.comment}
   sweep:
-    dir: runs/${now:%Y-%m-%d_%H-%M-%S}-${train_param.comment}
+    dir: runs/${now:%Y-%m-%d_%H-%M-%S}-${train_parameters.comment}
