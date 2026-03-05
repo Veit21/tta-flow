@@ -2,7 +2,7 @@
 
 Flow Matching model for generating optical coherence tomography (OCT) images across different imaging devices. This project implements conditional flow matching trained on volumetric OCT data from the RETOUCH dataset.
 
-<img src="data/figures/visual_abstract_paper.pdf" width="800"/>
+<img src="data/figures/visual_abstract_paper.png" width="800"/>
 
 # Project Overview
 
