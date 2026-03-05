@@ -26,7 +26,7 @@ class UNetModelWrapper(UNetModel):
         dim,
         num_channels,
         num_res_blocks,
-        num_out_channels=1,     # NOTE: Added this "out_channel" argument for more flexibility in I/O
+        num_out_channels=1,
         channel_mult=None,
         learn_sigma=False,
         class_cond=False,

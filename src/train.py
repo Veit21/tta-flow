@@ -22,7 +22,7 @@ from torchvision.utils import make_grid
 from torchvision.transforms import ToPILImage
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from util.data_loader import FlowMatchingTrainDataset, load_data_from_csv, get_transforms
+from util.datasets import FlowMatchingTrainDataset, load_data_from_csv, get_transforms
 from util import model_util, losses, flow_matching_util
 from util.checkpoint_manager import CheckpointManager
 

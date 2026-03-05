@@ -10,3 +10,4 @@ __pycache__/
 # Do not copy data directly into the image!
 data/
 /home/veit-hucke/Data/
+runs/*

@@ -44,7 +44,7 @@ class FlowMatchingTrainDataset(Dataset):
         self.volumes_tag        = volumes_tag
 
         # Cache data
-        self.cached_files   = self.cache_data()
+        self.cached_files   = self._cache_data()
 
     def __len__(self):
         return len(self.cached_files)
@@ -61,7 +61,7 @@ class FlowMatchingTrainDataset(Dataset):
             
         return x_0, x_1
 
-    def cache_data(self) -> tuple:
+    def _cache_data(self) -> tuple:
         """
         Load 3D volumetric data from disk and split into 2D slices.
         
@@ -116,21 +116,21 @@ class FlowMatchingInferenceDataset(Dataset):
         self.volumes_tag    = volumes_tag
         
         # Cache data
-        self.cached_volumes = self.cache_data()
+        self.cached_volumes = self._cache_data()
     
     def __len__(self) -> int:
         return len(self.cached_volumes)
     
     def __getitem__(self, idx: int) -> torch.Tensor:
-        volume = self.cached_volumes[idx]  # (D, H, W)
+        volume = self.cached_volumes[idx].copy()  # (D, H, W)
         
         # Apply transforms
         if self.transform:
-          volume = self.transform(volume=volume["volume"])      # TODO: Check whether this transform works as expected!
+          volume = self.transform(volume=volume)["volume"]
 
         return volume
     
-    def cache_data(self) -> list:
+    def _cache_data(self) -> list:
         """
         Load 3D volumetric data from disk and cache them.
         

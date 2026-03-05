@@ -17,7 +17,7 @@ from scipy import linalg
 from models.inception_model import InceptionV3
 from models.retfound_model import RETFound_mae
 from models.mirage_model import MIRAGEWrapper
-from src.util import data_loader
+from util import datasets
 
 
 def calculate_fid(act1: np.ndarray, act2: np.ndarray, eps: float=1e-6) -> float:
@@ -219,7 +219,7 @@ def get_activations_from_path(files: list, device: torch.device, model_name: str
     model.eval()
 
     # Construct DataLoader
-    dataset     = data_loader.Dataset_Cached(paths_list=files, is_3d=True, load_from_numpy=load_from_numpy, transform=transforms)
+    dataset     = datasets.Dataset_Cached(paths_list=files, is_3d=True, load_from_numpy=load_from_numpy, transform=transforms)
     dataloader  = torch.utils.data.DataLoader(
         dataset=dataset,
         batch_size=batch_size,
