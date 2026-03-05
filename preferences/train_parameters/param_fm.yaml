@@ -1,5 +1,5 @@
 max_iterations: 300001
-eval_num_steps: 5000
+eval_num_steps: 2500
 seed: 42
 train_batch_size: 16
 num_val_samples: 9

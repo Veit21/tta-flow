@@ -22,7 +22,8 @@ def build_model(config: DictConfig, logger, device) -> None:
     """
 
     # Log info
-    logger.info(f"Building model >> {config['model']['name']} << from {config['model']['module']}")
+    if logger:
+        logger.info(f"Building model >> {config['model']['name']} << from {config['model']['module']}")
 
     # Load model class
     model_class = get_class(config['model']['module'])
