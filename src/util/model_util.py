@@ -1,10 +1,12 @@
 ##############################################################
 #
-#       This script defines some helper functions related to the models
+#   This script defines some helper functions related to the models
 #
 ##############################################################
 
 # Import libraries
+import torch.nn as nn
+
 from hydra.utils import get_class
 from omegaconf import DictConfig
 
@@ -31,3 +33,18 @@ def build_model(config: DictConfig, logger, device) -> None:
     # Pass arguments
     model = model_class(**config['model']['params']).to(device)
     return model
+
+def ema(source: nn.Module, target: nn.Module, decay: float):
+    """Exponential moving average decay of the model parameters.
+
+    Args:
+        source (nn.Module): Source network to read the current weights from.
+        target (nn.Module): Target network whose weights should be decayed.
+        decay (float): Decay rate of the model parameters.
+    """
+    source_dict = source.state_dict()
+    target_dict = target.state_dict()
+    for key in source_dict.keys():
+        target_dict[key].data.copy_(
+            target_dict[key].data * decay + source_dict[key].data * (1 - decay)
+        )
