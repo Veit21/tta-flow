@@ -7,12 +7,14 @@
 # Imports
 import torch
 
+import numpy as np
+
 from torch import nn
 from tqdm import tqdm
 
 
 #----------------------------------------------------------------------------
-# Helper function to enforce correct data shape
+# Helper functions
 
 def pad_t_like_x(t, x):
     """Function to reshape the time vector t by the number of dimensions of x.
@@ -36,6 +38,72 @@ def pad_t_like_x(t, x):
     if isinstance(t, (float, int)):
         return t
     return t.reshape(-1, *([1] * (x.dim() - 1)))
+
+# Histogram Matching
+def match_cumulative_cdf_batch(source, template_batch):
+    """Return modified source array so that the cumulative density function of
+    its values matches the average cumulative density function across a batch
+    of template images.
+
+    Adapted from skimage.exposure.match_histograms()
+    For more information see https://scikit-image.org/docs/stable/auto_examples/color_exposure/plot_histogram_matching.html
+
+    Args:
+        source (np.ndarray): Source image to be matched
+        template_batch (np.ndarray): Batch of N template images
+
+    Returns:
+        np.ndarray: Processed source image (H, W)
+    """
+    source          = source.squeeze()            # To shape (H, W)
+    template_batch  = template_batch.squeeze()    # To shape (N, H, W)
+
+    if source.dtype.kind == 'u':
+        src_lookup = source.reshape(-1)
+        src_counts = np.bincount(src_lookup)
+        
+        # Compute histogram for each template image in the batch
+        max_val = template_batch.max()
+        tmpl_counts_batch = np.array([
+            np.bincount(template_batch[i].reshape(-1), minlength=max_val+1)
+            for i in range(template_batch.shape[0])
+        ])
+        # Average the histograms across the batch
+        tmpl_counts = tmpl_counts_batch.mean(axis=0)
+        
+        # omit values where the count was 0
+        tmpl_values = np.nonzero(tmpl_counts)[0]
+        tmpl_counts = tmpl_counts[tmpl_values]
+    else:
+        src_values, src_lookup, src_counts = np.unique(
+            source.reshape(-1), return_inverse=True, return_counts=True
+        )
+        
+        # Collect all unique values and their counts across all template images
+        all_tmpl_values = []
+        all_tmpl_counts = []
+        for i in range(template_batch.shape[0]):
+            vals, counts = np.unique(template_batch[i].reshape(-1), return_counts=True)
+            all_tmpl_values.append(vals)
+            all_tmpl_counts.append(counts)
+        
+        # Create a unified histogram across all unique values
+        all_unique_vals = np.unique(np.concatenate(all_tmpl_values))
+        tmpl_counts_aggregate = np.zeros(len(all_unique_vals))
+        
+        for vals, counts in zip(all_tmpl_values, all_tmpl_counts):
+            indices = np.searchsorted(all_unique_vals, vals)
+            tmpl_counts_aggregate[indices] += counts
+        
+        tmpl_values = all_unique_vals
+        tmpl_counts = tmpl_counts_aggregate / template_batch.shape[0]
+    
+    # calculate normalized quantiles for each array
+    src_quantiles = np.cumsum(src_counts) / source.size
+    tmpl_quantiles = np.cumsum(tmpl_counts) / (template_batch.shape[1] * template_batch.shape[2])
+    
+    interp_a_values = np.interp(src_quantiles, tmpl_quantiles, tmpl_values)
+    return interp_a_values[src_lookup].reshape(source.shape)
     
 
 #----------------------------------------------------------------------------

@@ -21,7 +21,7 @@ class CheckpointManager:
         logger (logging.Logger): Logger for informational and warning messages.
     """
     
-    def __init__(self, checkpoint_dir: str, logger: logging.Logger):
+    def __init__(self, log_dir: str, logger: logging.Logger):
         """
         Initialize the CheckpointManager.
         
@@ -29,9 +29,10 @@ class CheckpointManager:
             checkpoint_dir (str): Directory path where checkpoints will be saved and loaded.
             logger (logging.Logger): Logger instance for reporting status and warnings.
         """
-        self.checkpoint_dir = checkpoint_dir
+        self.log_dir = log_dir
         self.logger = logger
-        os.makedirs(checkpoint_dir, exist_ok=True)
+        self.checkpoint_dir = self.log_dir / "checkpoints"
+        os.makedirs(self.checkpoint_dir, exist_ok=True)
     
     def find_latest_checkpoint(self) -> Optional[str]:
         """

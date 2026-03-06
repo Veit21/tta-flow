@@ -16,7 +16,7 @@ from torchvision.transforms import ToPILImage
 
 def save_visualizations(
     trajectories: list,
-    save_path: str,
+    log_dir: str,
     step: int,
     net: str,
     logger: logging.Logger,
@@ -25,18 +25,24 @@ def save_visualizations(
     padding: int = 2,
     every_nth: int = 10,
 ) -> None:
-    """
-    Save trajectory visualizations as static images and animated GIFs.
-    
-    Creates three types of visualizations:
-    - Grid of initial frames (x0)
-    - Grid of final frames (x1)
-    - Grid of sampled trajectory steps and animated GIF
+    """TODO: Write a proper docstring here.
+
+    Args:
+        trajectories (list): _description_
+        log_dir (str): _description_
+        step (int): _description_
+        net (str): _description_
+        logger (logging.Logger): _description_
+        grid_size (int, optional): _description_. Defaults to 3.
+        num_samples (int, optional): _description_. Defaults to 9.
+        padding (int, optional): _description_. Defaults to 2.
+        every_nth (int, optional): _description_. Defaults to 10.
     """
     
     # Ensure output directories exist
-    os.makedirs(os.path.join(save_path, "im"), exist_ok=True)
-    os.makedirs(os.path.join(save_path, "gif"), exist_ok=True)
+    save_path   = log_dir / "val"
+    (save_path / "im").mkdir(parents=True, exist_ok=True)
+    (save_path / "gif").mkdir(parents=True, exist_ok=True)
     
     # Select subset of trajectories
     actual_num_samples = min(len(trajectories), num_samples)

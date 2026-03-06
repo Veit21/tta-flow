@@ -6,6 +6,7 @@ num_val_samples: 9
 grad_clip: 1.0
 ema_decay: 0.9999
 solver: 'euler'
+num_integration_steps: 101
 continue_train: False
 checkpoint_dir: ""                  # Path to the saved weights for continuing training. If empty, training starts from scratch.
 continue_in_checkpoint_dir: True    # Whether continue to save in the 'old' directory or create a new one. If false, hydra just creates a new directory as log_dir/save_dir

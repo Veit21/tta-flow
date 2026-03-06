@@ -1,4 +1,5 @@
 # Import libraries
+import logging
 import torch
 import numpy as np
 import pandas as pd
@@ -28,7 +29,7 @@ class FlowMatchingTrainDataset(Dataset):
         cached_files (list): List of cached 2D image slices loaded from 3D volumes.
     """
     
-    def __init__(self, dataframe: pd.DataFrame, transform=None, volumes_tag="volume"):
+    def __init__(self, dataframe: pd.DataFrame, log: logging.Logger, transform=None, volumes_tag="volume"):
         """
         Initialize the FlowMatchingTrainDataset.
         
@@ -39,9 +40,10 @@ class FlowMatchingTrainDataset(Dataset):
             volumes_tag (str, optional): Column name in dataframe containing volume paths.
                 Defaults to "volume".
         """
-        self.df                 = dataframe
-        self.transform          = transform
-        self.volumes_tag        = volumes_tag
+        self.df             = dataframe
+        self.log            = log
+        self.transform      = transform
+        self.volumes_tag    = volumes_tag
 
         # Cache data
         self.cached_files   = self._cache_data()
@@ -52,7 +54,7 @@ class FlowMatchingTrainDataset(Dataset):
     def __getitem__(self, idx):
         
         # Draw images from cache
-        x_1 = self.cached_files[idx].transpose(1, 2, 0)             # (C, H, W) -> (H, W, C)
+        x_1 = self.cached_files[idx].transpose(1, 2, 0)     # (C, H, W) -> (H, W, C)
 
         # Apply transforms
         if self.transform:
@@ -73,14 +75,12 @@ class FlowMatchingTrainDataset(Dataset):
         """
         cached_images    = []
 
-        # Load data
-        print(f"Loading target data.")
         for path in tqdm(self.df[self.volumes_tag], desc="Loading files"):
             volume  = np.load(path).astype(np.float32)
             slices  = np.split(volume, volume.shape[0], axis=0)     # Split (D, H, W) in D x (1, H, W) arrays
             cached_images += slices
 
-        print(f"INFO: Loaded {len(cached_images)} target images")
+        self.log.info(f"Loaded {len(cached_images)} target images")
     
         return cached_images
     
@@ -100,7 +100,7 @@ class FlowMatchingInferenceDataset(Dataset):
         cached_volumes (list): List of cached full 3D volumes.
     """
     
-    def __init__(self, dataframe: pd.DataFrame, transform=None, volumes_tag="volume"):
+    def __init__(self, dataframe: pd.DataFrame, log: logging.Logger, transform=None, volumes_tag="volume"):
         """
         Initialize the FlowMatchingInferenceDataset.
         
@@ -112,6 +112,7 @@ class FlowMatchingInferenceDataset(Dataset):
                 Defaults to "volume".
         """
         self.df             = dataframe
+        self.log            = log
         self.transform      = transform
         self.volumes_tag    = volumes_tag
         
@@ -141,12 +142,11 @@ class FlowMatchingInferenceDataset(Dataset):
         """
         cached_volumes = []
         
-        print(f"Loading inference data.")
         for path in tqdm(self.df[self.volumes_tag], desc="Loading volumes"):
             volume = np.load(path).astype(np.float32)
             cached_volumes.append(volume)
         
-        print(f"INFO: Loaded {len(cached_volumes)} volumes")
+        self.log.info(f"Loaded {len(cached_volumes)} volumes")
         
         return cached_volumes 
 

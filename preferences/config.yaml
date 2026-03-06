@@ -4,6 +4,7 @@ defaults:
   - loss: fm_regression
   - data: retouch_spectralis
   - train_parameters: param_fm
+  - test_parameters: test_param_fm
   - transforms: transforms_fm
   
 hydra:
