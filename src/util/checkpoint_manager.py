@@ -1,6 +1,8 @@
-"""
-Checkpoint management utilities for training resumption and model persistence.
-"""
+###########################################################################
+#
+# Checkpoint management utilities.
+#
+###########################################################################
 
 import os
 import torch
@@ -10,33 +12,23 @@ from typing import Optional, Tuple, Dict, Any
 
 
 class CheckpointManager:
-    """
-    Manages checkpoint loading and saving for model training.
-    
-    Handles checkpoint persistence with support for resuming training from the latest checkpoint.
-    Manages both primary and EMA models, along with optimizer and scheduler states.
-    
-    Attributes:
-        checkpoint_dir (str): Directory where checkpoints are stored.
-        logger (logging.Logger): Logger for informational and warning messages.
+    """Manages checkpoint loading and saving for model training.
     """
     
-    def __init__(self, log_dir: str, logger: logging.Logger):
-        """
-        Initialize the CheckpointManager.
+    def __init__(self, log_dir: Path, logger: logging.Logger):
+        """Initialize the CheckpointManager.
         
         Args:
-            checkpoint_dir (str): Directory path where checkpoints will be saved and loaded.
+            log_dir (str): Directory path where the data for the current experiment will be saved and loaded.
             logger (logging.Logger): Logger instance for reporting status and warnings.
         """
-        self.log_dir = log_dir
-        self.logger = logger
+        self.log_dir        = log_dir
+        self.logger         = logger
         self.checkpoint_dir = self.log_dir / "checkpoints"
         os.makedirs(self.checkpoint_dir, exist_ok=True)
     
     def find_latest_checkpoint(self) -> Optional[str]:
-        """
-        Find the latest checkpoint file in the checkpoint directory.
+        """Find the latest checkpoint file in the checkpoint directory.
         
         Searches for files matching the pattern "*_step_*.pt" and returns the one with
         the highest step number.
@@ -51,8 +43,8 @@ class CheckpointManager:
         
         # Extract step numbers and find the checkpoint with the highest step
         try:
-            steps = [int(f.split('_step_')[-1].replace('.pt', '')) for f in checkpoints]
-            latest_idx = steps.index(max(steps))
+            steps       = [int(f.split('_step_')[-1].replace('.pt', '')) for f in checkpoints]
+            latest_idx  = steps.index(max(steps))
             return os.path.join(self.checkpoint_dir, checkpoints[latest_idx])
         except (ValueError, IndexError):
             self.logger.warning("Could not parse checkpoint filenames to find the latest checkpoint.")
@@ -65,25 +57,19 @@ class CheckpointManager:
         optimizer: torch.optim.Optimizer,
         scheduler: torch.optim.lr_scheduler.LambdaLR,
     ) -> int:
-        """
-        Load checkpoint and restore model, optimizer, and scheduler states.
+        """Load checkpoint and restore model, optimizer, and scheduler states.
         
         Loads the latest checkpoint from the checkpoint directory and restores all model
-        weights, optimizer state, and scheduler state. Handles missing or unexpected keys
-        gracefully with warnings.
+        weights, optimizer state, and scheduler state.
         
         Args:
-            net_model (torch.nn.Module): Primary model to restore weights into.
-            ema_model (torch.nn.Module): EMA model to restore weights into.
-            optimizer (torch.optim.Optimizer): Optimizer to restore state into.
-            scheduler (torch.optim.lr_scheduler.LambdaLR): Scheduler to restore state into.
+            net_model (torch.nn.Module): Primary model to load weights into.
+            ema_model (torch.nn.Module): EMA model to load weights into.
+            optimizer (torch.optim.Optimizer): Optimizer to load state into.
+            scheduler (torch.optim.lr_scheduler.LambdaLR): Scheduler to load state into.
         
         Returns:
             int: Step number from the loaded checkpoint. Returns 0 if no checkpoint is found.
-        
-        Example:
-            >>> manager = CheckpointManager("path/to/checkpoints", logger)
-            >>> start_step = manager.load_checkpoint(net_model, ema_model, optim, sched)
         """
         checkpoint_path = self.find_latest_checkpoint()
         
@@ -134,8 +120,7 @@ class CheckpointManager:
         step: int,
         model_name: str = "model",
     ) -> None:
-        """
-        Save checkpoint with model, optimizer, and scheduler states.
+        """Save checkpoint with model, optimizer, and scheduler states.
         
         Args:
             net_model (torch.nn.Module): Primary model to save.
@@ -143,11 +128,7 @@ class CheckpointManager:
             optimizer (torch.optim.Optimizer): Optimizer state to save.
             scheduler (torch.optim.lr_scheduler.LambdaLR): Scheduler state to save.
             step (int): Current training step.
-            model_name (str, optional): Name identifier for the model in the checkpoint filename.
-                Defaults to "model".
-        
-        Example:
-            >>> manager.save_checkpoint(net_model, ema_model, optim, sched, step=1000, model_name="gaussian")
+            model_name (str, optional): Name identifier for the model in the checkpoint filename. Defaults to "model".
         """
         checkpoint = {
             'net_model': net_model.state_dict(),

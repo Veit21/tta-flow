@@ -15,18 +15,11 @@ from torch.utils.data import Dataset
 # Dataset classes for loading and caching the data
  
 class FlowMatchingTrainDataset(Dataset):
-    """
-    PyTorch Dataset for flow matching training that loads and caches 3D volumetric data.
+    """PyTorch Dataset for flow matching training that loads and caches 3D volumetric data.
     
     This dataset loads 3D volumes from disk, splits them into 2D slices, and applies
     augmentation transformations. For each sample, it returns a pair of images: a random
     noise tensor (x_0) and a transformed target image (x_1).
-    
-    Attributes:
-        df (pd.DataFrame): DataFrame containing paths to volumetric data.
-        transform: Albumentations augmentation pipeline to apply to images.
-        volumes_tag (str): Column name in the DataFrame that contains volume file paths.
-        cached_files (list): List of cached 2D image slices loaded from 3D volumes.
     """
     
     def __init__(self, dataframe: pd.DataFrame, log: logging.Logger, transform=None, volumes_tag="volume"):
@@ -64,8 +57,7 @@ class FlowMatchingTrainDataset(Dataset):
         return x_0, x_1
 
     def _cache_data(self) -> tuple:
-        """
-        Load 3D volumetric data from disk and split into 2D slices.
+        """Load 3D volumetric data from disk and split into 2D slices.
         
         This method reads all 3D volumes specified in the dataframe, splits each volume
         along the depth dimension into individual 2D slices, and caches them in memory.
@@ -86,23 +78,15 @@ class FlowMatchingTrainDataset(Dataset):
     
 
 class FlowMatchingInferenceDataset(Dataset):
-    """
-    PyTorch Dataset for inference that loads and caches full 3D volumetric data.
+    """PyTorch Dataset for inference that loads and caches full 3D volumetric data.
     
-    Unlike the training dataset, this dataset loads complete 3D volumes without slicing.
+    This dataset loads complete 3D volumes without slicing.
     It optionally applies augmentation transformations slice-by-slice and returns the
     full 3D volume as a tensor.
-    
-    Attributes:
-        df (pd.DataFrame): DataFrame containing paths to volumetric data.
-        transform: Albumentations augmentation pipeline to apply to each 2D slice.
-        volumes_tag (str): Column name in the DataFrame that contains volume file paths.
-        cached_volumes (list): List of cached full 3D volumes.
     """
     
     def __init__(self, dataframe: pd.DataFrame, log: logging.Logger, transform=None, volumes_tag="volume"):
-        """
-        Initialize the FlowMatchingInferenceDataset.
+        """Initialize the FlowMatchingInferenceDataset.
         
         Args:
             dataframe (pd.DataFrame): DataFrame with volume file paths.
@@ -132,8 +116,7 @@ class FlowMatchingInferenceDataset(Dataset):
         return volume
     
     def _cache_data(self) -> list:
-        """
-        Load 3D volumetric data from disk and cache them.
+        """Load 3D volumetric data from disk and cache them.
         
         This method reads all 3D volumes specified in the dataframe and caches them in memory.
         
@@ -152,29 +135,25 @@ class FlowMatchingInferenceDataset(Dataset):
 
 
 def load_data_from_csv(csv_path: str) -> pd.DataFrame:
-    """
-    Reads the content of a .csv file and returns it as a pd.DataFrame.
+    """Reads the content of a .csv file and returns it as a pd.DataFrame.
 
     Args:
         csv_path (str): Path to the .csv file that contains information about the data.
 
     Returns:
         pd.DataFrame: DataFrame object which contains the data.
-    Note:
-        Should this method implement more functionalities?
     """
     return pd.read_csv(csv_path)
 
 
 def get_transforms(config: DictConfig) -> tuple:
-    """
-    Loads the augmentation pipeline from a .yaml file that is passed in the command line.
+    """Loads the augmentation pipeline from a config.yaml file.
 
     Args:
-        config (DictConfig): A config dictionary that contains the names and parameters for the augmentations to load. The dictionary is created from a .yaml file.
+        config (DictConfig): Hydra config dictionary that contains the names and parameters for the augmentations to load.
 
     Returns:
-        tuple: A pair of train- and validation transform pipelines.
+        tuple: A Tuple of train-, validation- and test transform pipelines.
     """
     
     # List the augmentations

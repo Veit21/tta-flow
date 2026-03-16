@@ -5,19 +5,22 @@
 ##############################################################
 
 # Import libraries
+import torch
+
 import torch.nn as nn
 
 from hydra.utils import get_class
 from omegaconf import DictConfig
+from logging import Logger
 
-def build_model(config: DictConfig, logger, device) -> None:
-    """
-    Instantiates a model defined by the config file.
+
+def build_model(config: DictConfig, logger: Logger, device: torch.device) -> None:
+    """Instantiates a model defined by the config file.
 
     Args:
-        config (DictConfig): Config (created from some .yaml file) which defines the model to load.
+        config (DictConfig): Hydra config dictionary which defines the model to load.
         logger (Logger): Logs console output.
-        device (str): Device to load the model to. 'gpu' or 'cpu'.
+        device (torch.device): Device to load the model to. 'gpu' or 'cpu'.
 
     Returns:
         Model: Instantiated model object.

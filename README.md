@@ -76,7 +76,7 @@ bash src/train.sh retouch_spectralis my_experiment_name \
   optimizer.lr=1e-4
 ```
 
-Outputs are saved to `runs/{timestamp}-{experiment_name}/`, containing model checkpoints and TensorBoard logs (monitor with `tensorboard --logdir runs/`).
+Outputs are saved to `runs/{timestamp}-{experiment_name}/`, containing model checkpoints and TensorBoard logs.
 
 ## Inference
 

@@ -20,6 +20,7 @@ from models.mirage_model import MIRAGEWrapper
 from util import datasets
 
 
+# TODO: Implement this?
 def calculate_fid(act1: np.ndarray, act2: np.ndarray, eps: float=1e-6) -> float:
     """Calculates the Frechet Inception Distance (FID) between two sets of activations.
 

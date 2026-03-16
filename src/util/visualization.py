@@ -1,6 +1,6 @@
 ##############################################################
 #
-#   Define some helper functions for visualization
+#   Helper functions for visualization
 #
 ##############################################################
 
@@ -24,19 +24,25 @@ def save_visualizations(
     num_samples: int = 9,
     padding: int = 2,
     every_nth: int = 10,
-) -> None:
-    """TODO: Write a proper docstring here.
+):
+    """Saves trajectory visualizations as static image grids and animated GIFs.
+    
+    This function randomly samples a subset of the provided trajectories and generates
+    three types of visualizations saved within the validation directory (`<log_dir>/val/`):
+    1. A static grid of the final generated frames (x1).
+    2. A static grid showing the progression of a single denoising trajectory subsampled over time.
+    3. An animated GIF showing the generation process of the grid across all timesteps.
 
     Args:
-        trajectories (list): _description_
-        log_dir (str): _description_
-        step (int): _description_
-        net (str): _description_
-        logger (logging.Logger): _description_
-        grid_size (int, optional): _description_. Defaults to 3.
-        num_samples (int, optional): _description_. Defaults to 9.
-        padding (int, optional): _description_. Defaults to 2.
-        every_nth (int, optional): _description_. Defaults to 10.
+        trajectories (list): List of trajectory tensors, where each tensor typically has the shape [T, 1, 1, H, W].
+        log_dir (str): Base logging directory. Visualizations are saved in subdirectories `val/im` and `val/gif`.
+        step (int): The current training step or iteration, used for naming the output files.
+        net (str): Identifier for the network (e.g., "ema" or "normal"), used for naming the output files.
+        logger (logging.Logger): Logger object.
+        grid_size (int, optional): Number of images per row in the final frame and GIF grids. Defaults to 3.
+        num_samples (int, optional): Maximum number of trajectories to randomly select for visualization. Defaults to 9.
+        padding (int, optional): Number of padding pixels between images in the generated grids. Defaults to 2.
+        every_nth (int, optional): Step interval for subsampling the single trajectory progression grid. Defaults to 10.
     """
     
     # Ensure output directories exist

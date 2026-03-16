@@ -1,7 +1,6 @@
 #!/bin/bash
 ####################################################################################
 #
-#   Flow Matching Inference Script
 #   Runs inference using a trained model checkpoint and Hydra configuration.
 #
 ####################################################################################

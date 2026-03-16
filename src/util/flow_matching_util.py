@@ -18,6 +18,7 @@ from tqdm import tqdm
 
 def pad_t_like_x(t, x):
     """Function to reshape the time vector t by the number of dimensions of x.
+    NOTE: Taken from torchcfm library
 
     Parameters
     ----------
@@ -115,7 +116,6 @@ class ODESolver():
         Args:
             model (nn.Module): Neural network that parameterizes the vector field v_theta(t, x), pushing a sample x0 to x1 over time.
             solver (str, optional): ODE solver, choose from ["euler", "midpoint"]. Defaults to "midpoint".
-            conditional (bool, optional): Whether to solve the ODE with conditional information.
             sample_x (bool, optional): Whether the network output is the velocity field v_hat or directly the clean sample x_hat. Defaults to False.
         """
         self.model          = model
@@ -147,7 +147,7 @@ class ODESolver():
                 if self.sample_x:
                     x_hat   = self.model(t_current, x_current)                              # 1) Predict clean x_hat
                     v_hat   = (x_hat - x_current) / torch.clamp(1 - t_current, min=0.05)    # 2) Reformulate to obtain v_hat
-                    x_next  = x_current + dt * v_hat                                        # 3) Integrate
+                    x_next  = x_current + dt * v_hat                                        # 3) Integration step
                 else:
                     x_next  = x_current + dt * self.model(t_current, x_current)
             
@@ -159,8 +159,8 @@ class ODESolver():
                     x_mid       = x_current + 0.5 * dt * k1                                                 # 3) Get midpoint given v_hat
 
                     x_hat_k2    = self.model(t_current + 0.5 * dt, x_mid)                                   # 4) Predict x_hat at midpoint again
-                    k2          = (x_hat_k2 - x_mid) / torch.clamp(1 - (t_eval + 0.5 * dt), min=0.05)    # 5) Get 
-                    x_next      = x_current + dt * k2
+                    k2          = (x_hat_k2 - x_mid) / torch.clamp(1 - (t_eval + 0.5 * dt), min=0.05)       # 5) Reformulate to v_hat again
+                    x_next      = x_current + dt * k2                                                       # 6) Integration step
                 else:
                     k1      = self.model(t_current, x_current)
                     x_mid   = x_current + 0.5 * dt * k1
@@ -173,7 +173,7 @@ class ODESolver():
     
     
     def __call__(self, x: torch.Tensor, t_span: torch.Tensor) -> torch.Tensor:
-        """Calls the respective method to integrate x, either guided by y or not.
+        """Calls the 'solve' method to integrate x over t_span.
 
         Args:
             x (torch.Tensor): Initial condition. Shape (B, C, H, W)

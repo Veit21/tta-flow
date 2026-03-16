@@ -15,7 +15,6 @@ from pathlib import Path
 from tqdm import tqdm
 from copy import deepcopy
 
-# Adjust these imports to match your exact file structure
 from util.datasets import FlowMatchingInferenceDataset, get_transforms, load_data_from_csv
 from torch.utils.data import DataLoader
 from util import model_util, flow_matching_util
@@ -25,44 +24,45 @@ from util.checkpoint_manager import CheckpointManager
 # Helper methods
 
 def build_dataloader(cfg: DictConfig, log: logging.Logger) -> DataLoader:
-    """TODO: Write a proper docstring
+    """Builds the DataLoader object along with transforms specified in the config.
 
     Args:
-        cfg (DictConfig): _description_
-        log (loggin.Logger): _description_
+        cfg (DictConfig): Hydra config dictionary.
+        log (logging.Logger): Logger object.
 
     Returns:
-        DataLoader: _description_
+        DataLoader: The DataLoader object.
     """
 
     # Get the transforms
-    _, _, test_transforms  = get_transforms(config=cfg)
+    _, _, transforms  = get_transforms(config=cfg)
 
     # Load the data
-    test_dataframe     = load_data_from_csv(csv_path=cfg["data"]["data_dir"])
-    test_dataset       = FlowMatchingInferenceDataset(
-        dataframe=test_dataframe,
+    dataframe     = load_data_from_csv(csv_path=cfg["data"]["data_dir"])
+    dataset       = FlowMatchingInferenceDataset(
+        dataframe=dataframe,
         log=log,
-        transform=test_transforms,
+        transform=transforms,
     )
-    test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False)
-    return test_dataloader
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+    return dataloader
 
 def initialize_model(cfg: DictConfig, log: logging.Logger, device: torch.device, experiment_root_dir: Path) -> nn.Module:
-    """TODO: Write proper docstring here.
+    """Initializes the network and loads the learned parameters from a given checkpoint.
 
     Args:
-        cfg (DictConfig): _description_
-        log (logging.Logger): _description_
-        device (torch.device): _description_
-        experiment_root_dir (Path): _description_
+        cfg (DictConfig): Hydra config dictionary.
+        log (logging.Logger): Logger object.
+        device (torch.device): Device to copy the network to. Either of ['cpu', 'cuda'].
+        experiment_root_dir (Path): Path to the directory of the run to load the checkpoint from. I.e. "/runs/my_experiment".
 
     Raises:
-        FileNotFoundError: _description_
+        FileNotFoundError: If the specified path to the experiment does not exist.
 
     Returns:
-        nn.Module: _description_
+        nn.Module: The network object with loaded weights.
     """
+
     model               = model_util.build_model(config=cfg, logger=log, device=device)
     checkpoint_manager  = CheckpointManager(log_dir=experiment_root_dir, logger=log)
     ckpt_path           = Path(checkpoint_manager.find_latest_checkpoint())
@@ -80,17 +80,21 @@ def initialize_model(cfg: DictConfig, log: logging.Logger, device: torch.device,
     return model
 
 def generate_reference_trajectories(cfg: DictConfig, log: logging.Logger, ode_solver: flow_matching_util.ODESolver, device: torch.device) -> np.ndarray:
-    """TODO: Generate proper docstring here.
+    """
+    Generates reference trajectories by integrating a sample from random noise using a specified ODE solver.
+    The ODE solver already contains the trained network which defines the vector field we integrate over.
 
     Args:
-        cfg (DictConfig): _description_
-        log (logging.Logger): _description_
-        ode_solver (flow_matching_util.ODESolver): _description_
-        device (torch.device): _description_
+        cfg (DictConfig): Hydra config dictionary.
+        log (logging.Logger): Logger object.
+        ode_solver (flow_matching_util.ODESolver): Initialized ODE solver to perform the integration. Includes the trained network that defines the vector field.
+        device (torch.device): Device on which to perform the computations on. One of ['cpu', 'cuda'].
 
     Returns:
-        np.ndarray: _description_
+        np.ndarray: A NumPy array containing the generated reference trajectories of 
+            shape [N, T, 1, 1, H, W], where N is the number of trajectories and T is the number of integration steps.
     """
+
     log.info(f"Generating N={cfg["test_parameters"]["num_reference_trajectories"]} reference trajectories...")
     h, w = cfg["model"]["params"]["dim"][1], cfg["model"]["params"]["dim"][2]
     traj_reference_list = []
@@ -110,7 +114,7 @@ def generate_reference_trajectories(cfg: DictConfig, log: logging.Logger, ode_so
             traj_reference_np = traj_reference.detach().cpu().numpy()
             traj_reference_list.append(traj_reference_np)
 
-    reference_trajectories_np = np.stack(traj_reference_list).astype(np.float32)
+    reference_trajectories_np = np.stack(traj_reference_list).astype(np.float32)    # Shape [N, T, 1, 1, H, W]
     return reference_trajectories_np
 
 #----------------------------------------------------------------------------
@@ -118,6 +122,16 @@ def generate_reference_trajectories(cfg: DictConfig, log: logging.Logger, ode_so
 
 @hydra.main(version_base=None, config_path="../preferences", config_name="config")
 def main(cfg: DictConfig):
+    """Main method that starts inference with a trained Flow Matching model.
+
+    Args:
+        cfg (DictConfig): Hydra config dictionary.
+
+    Raises:
+        FileNotFoundError: If the experiment directory which contains the checkpoint to load the weights from does not exist.
+        TypeError: If the number of reference trajectories is not an integer.
+        ValueError: If the number of refrence trajectories has a negative value.
+    """
 
     # Setup logging
     log = logging.getLogger(__name__)
@@ -153,7 +167,7 @@ def main(cfg: DictConfig):
 
     # Validate _N and s_target are positive integer (incl. 0)
     if not isinstance(num_references, int):
-        raise TypeError(f"N and s_target must be integer! Got: N={num_references} (type: {type(num_references).__name__})")
+        raise TypeError(f"N and must be integer! Got: N={num_references} (type: {type(num_references).__name__})")
     if num_references > 0:
         reference_trajectories_np = generate_reference_trajectories(cfg=cfg, log=log, ode_solver=ode_solver, device=device)
     elif num_references == 0:

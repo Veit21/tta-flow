@@ -1,7 +1,6 @@
 #!/bin/bash
 ####################################################################################
 #
-#   Flow Matching Training Script
 #   Trains the Flow Matching model using Hydra configuration.
 #
 ####################################################################################

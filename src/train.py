@@ -9,7 +9,6 @@ import copy
 import torch
 import hydra
 import logging
-import os
 
 import numpy as np
 import torch.nn as nn
@@ -34,12 +33,13 @@ def generate_samples(cfg: DictConfig, model: nn.Module, log_dir: Path, step: int
     Generate validation samples using the trained model and save them to disk.
     
     Args:
-        cfg (DictConfig): Configuration dictionary containing model and training parameters.
+        cfg (DictConfig): Hydra config dictionary.
         model (nn.Module): Trained model to use for generation.
-        savedir_samples (str): Directory path where samples will be saved.
+        log_dir (Path): Directory where the generated samples should be saved.
         step (int): Current training step (used for filename).
         net (str): Network identifier ("normal" or "ema") for filename.
         device (torch.device): Device (CPU/GPU) to run generation on.
+        logger (logging.Logger): Logger object.
     """
     model.eval()
     ode_solver = flow_matching_util.ODESolver(
@@ -82,45 +82,46 @@ def generate_samples(cfg: DictConfig, model: nn.Module, log_dir: Path, step: int
     model.train()
 
 def build_dataloader(cfg: DictConfig, log: logging.Logger) -> DataLoader:
-    """TODO: Write a proper docstring
+    """Builds the DataLoader object along with transforms specified in the config.
 
     Args:
-        cfg (DictConfig): _description_
+        cfg (DictConfig): Hydra config dictionary.
+        log (logging.Logger): Logger object.
 
     Returns:
-        DataLoader: _description_
+        DataLoader: The DataLoader object.
     """
 
     # Get the transforms
-    train_transforms, _, _  = get_transforms(config=cfg)
+    transforms, _, _  = get_transforms(config=cfg)
 
     # Load the data
-    train_dataframe     = load_data_from_csv(csv_path=cfg["data"]["data_dir"])
-    train_dataset       = FlowMatchingTrainDataset(
-        dataframe=train_dataframe,
+    dataframe     = load_data_from_csv(csv_path=cfg["data"]["data_dir"])
+    dataset       = FlowMatchingTrainDataset(
+        dataframe=dataframe,
         log=log,
-        transform=train_transforms,
+        transform=transforms,
     )
-    train_dataloader    = DataLoader(
-        dataset=train_dataset,
+    dataloader    = DataLoader(
+        dataset=dataset,
         batch_size=cfg["train_parameters"]["train_batch_size"],
         shuffle=True,
         num_workers=8,
         pin_memory=True,
         drop_last=True
     )
-    return train_dataloader
+    return dataloader
 
 def build_models(cfg: DictConfig, log: logging.Logger, device: torch.device) -> tuple[nn.Module, nn.Module]:
-    """TODO: Write proper docstring.
+    """Builds the network and creates a copy for an exponential moving average (EMA) version of the model.
 
     Args:
-        cfg (DictConfig): _description_
-        log (logging.Logger): _description_
-        device (torch.device): _description_
+        cfg (DictConfig): Hydra config dictionary.
+        log (logging.Logger): Logger object.
+        device (torch.device): Device to copy the models to. One of ['cpu', 'cuda'].
 
     Returns:
-        tuple[nn.Module, nn.Module]: _description_
+        tuple[nn.Module, nn.Module]: The model and an EMA copy as tuple[model, ema_model].
     """
 
     # Define models
@@ -134,14 +135,14 @@ def build_models(cfg: DictConfig, log: logging.Logger, device: torch.device) -> 
     return net_model, ema_model
 
 def build_optimizer(cfg: DictConfig, net_model: nn.Module) -> tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR]:
-    """TODO: Write proper docstring here.
+    """Builds the AdamW optimizer and a learning rate scheduler.
 
     Args:
-        cfg (DictConfig): _description_
-        net_model (nn.Module): _description_
+        cfg (DictConfig): Hydra config dictionary.
+        net_model (nn.Module): The network to optimize.
 
     Returns:
-        tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR]: _description_
+        tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR]: The optimizer and scheduler objects as tuple[optimizer, scheduler].
     """
 
     # Warmup plan
@@ -154,18 +155,28 @@ def build_optimizer(cfg: DictConfig, net_model: nn.Module) -> tuple[torch.optim.
     return optim, sched
 
 def build_flow_matcher(cfg: DictConfig, log: logging.Logger) -> tuple[TargetConditionalFlowMatcher, losses.FlowMatchingRegressionLoss]:
-    """TODO: Write a proper docstring here.
+    """Builds the Flow Matching framework and its corresponding loss function.
+    
+    Instantiates the interpolator and sampler according to the plan specified in the 
+    configuration, alongside a loss function that optimizes the network. For example, 
+    when 'gaussian' is specified in the config, the interpolation is defined as 
+    x_t = t * x_1 + (1 - t) * eps, where eps ~ N(0,1). The standard loss function 
+    evaluates the Mean Squared Error (MSE) between the predicted velocity and the 
+    target vector field.
 
     Args:
-        cfg (DictConfig): _description_
-        log (logging.Logger): _description_
+        cfg (DictConfig): Hydra configuration dictionary.
+        log (logging.Logger): Logger object.
 
     Raises:
-        NotImplementedError: _description_
-        NotImplementedError: _description_
+        NotImplementedError: If the flow matching model type specified in
+            `cfg["model"]["q_z"]` is not supported (e.g., not 'gaussian').
+        NotImplementedError: If the loss function name specified in
+            `cfg["loss"]["name"]` is not supported (e.g., not 'FlowMatchingRegression').
 
     Returns:
-        tuple[TargetConditionalFlowMatcher, losses.FlowMatchingRegressionLoss]: _description_
+        tuple[TargetConditionalFlowMatcher, losses.FlowMatchingRegressionLoss]: A tuple 
+            containing the instantiated flow matcher object and the loss function.
     """
 
     # Define Flow Matching framework and the conditioning q(z)
@@ -192,6 +203,11 @@ def build_flow_matcher(cfg: DictConfig, log: logging.Logger) -> tuple[TargetCond
 
 @hydra.main(version_base=None, config_path="../preferences", config_name="config")
 def main(cfg: DictConfig) -> None:
+    """Main method that starts the training of a Flow Matching model.
+
+    Args:
+        cfg (DictConfig): Hydra config dictionary.
+    """
 
     # Setup environment 
     torch.manual_seed(cfg["train_parameters"]["seed"])
