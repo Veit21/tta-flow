@@ -1,6 +1,6 @@
 ###########################################################################
 #
-# This script contains implementations of different loss functions
+# Implementations of different loss functions
 #
 ###########################################################################
 

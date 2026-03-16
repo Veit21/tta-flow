@@ -1,6 +1,6 @@
 ##############################################################
 #
-#   This script defines a wrapper class for the torchcfm UNet
+#   Wrapper class for the torchcfm UNet
 #
 ##############################################################
 

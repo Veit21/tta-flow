@@ -1,6 +1,6 @@
 ##############################################################
 #
-#   This script defines some helper functions related to the models
+#   Define helper functions related to the models
 #
 ##############################################################
 

@@ -1,6 +1,6 @@
 ###########################################################################
 #
-# This script contains functions to calculate evaluation metrics
+# Functions to calculate evaluation metrics
 #
 ###########################################################################
 

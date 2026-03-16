@@ -1,6 +1,6 @@
 ###########################################################################
 #
-# This script contains utility classes and functions for flow matching
+# Utility classes and functions for flow matching
 #
 ###########################################################################
 
