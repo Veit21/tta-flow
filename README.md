@@ -114,8 +114,12 @@ Reconstructed volumes are saved as `pred_*.npy` under `{experiment_dir}/inferenc
 ## Citation
 ```
 @misc{hucke2026ttaflow,
-    title={Test-Time Adaptation in Optical Coherence Tomography Using Trajectory-Aligned Time-Independent Flow},
-    author={Veit Hucke and Thomas Pinetz and Gregor Reiter and Ursula Schmidt-Erfurth and Hrvoje Bogunovic},
-    year={2026},
+      title={Test-Time Adaptation in Optical Coherence Tomography Using Trajectory-Aligned Time-Independent Flow}, 
+      author={Veit Hucke and Thomas Pinetz and Gregor Reiter and Ursula Schmidt-Erfurth and Hrvoje Bogunović},
+      year={2026},
+      eprint={2606.18876},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2606.18876}, 
 }
 ```
