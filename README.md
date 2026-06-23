@@ -1,4 +1,12 @@
+<div align="center">
+    
 # TTA-Flow: Test-Time Adaptation in Optical Coherence Tomography Using Trajectory-Aligned Time-Independent Flow
+
+[![TTA_Flow Preprint](http://img.shields.io/badge/paper-arxiv.2606.18876-B31B1B.svg)](https://arxiv.org/abs/2606.18876)
+
+</div>
+
+## Introduction
 
 TTA-Flow is a test-time adaptation framework for cross-device reconstruction of optical coherence tomography (OCT) images. It leverages a generative Flow Matching model trained on volumetric OCT data to adapt unseen images from a new imaging device — without any retraining.
 
